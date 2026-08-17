@@ -214,6 +214,7 @@ router.post('/login', validate(schemas.login), async (req: Request, res: Respons
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         name: user.name,
         avatarUrl: user.avatarUrl,
         authProvider: user.authProvider,
@@ -240,6 +241,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         avatarUrl: true,
         authProvider: true,
@@ -279,6 +281,7 @@ router.put('/me', authenticate, async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         avatarUrl: true,
         authProvider: true,

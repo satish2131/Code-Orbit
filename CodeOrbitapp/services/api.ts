@@ -1,7 +1,7 @@
 import { API_URL } from '../constants/config';
 import * as SecureStore from 'expo-secure-store';
 
-const fetchApi = async (endpoint: string, options?: RequestInit, timeoutMs = 12000) => {
+const fetchApi = async (endpoint: string, options?: RequestInit, timeoutMs = 45000) => {
   let token: string | null = null;
   try {
     token = await SecureStore.getItemAsync('auth_token');
