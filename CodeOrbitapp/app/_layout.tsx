@@ -6,7 +6,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { Ionicons } from '@expo/vector-icons';
 import { Image, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { useSessionSocket } from '../hooks/useSessionSocket';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,8 +18,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 const HERO_IMAGE = require('../assets/images/auth_hero_banner.png');
 
 export default function RootLayout() {
-  const { user, restoreSession } = useAuthStore();
-  const { initializeSocket } = useSessionSocket();
+  const { restoreSession } = useAuthStore();
   const [appIsReady, setAppIsReady] = useState(false);
 
   useEffect(() => {
@@ -47,17 +45,6 @@ export default function RootLayout() {
 
     prepareInitialRender();
   }, []);
-
-  useEffect(() => {
-    if (user && appIsReady) {
-      try {
-        const cleanup = initializeSocket();
-        return cleanup;
-      } catch (err) {
-        console.warn('Socket initialization error in RootLayout:', err);
-      }
-    }
-  }, [user?.id, appIsReady, initializeSocket]);
 
   if (!appIsReady) {
     return (
