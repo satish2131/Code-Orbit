@@ -27,14 +27,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "androidNavigationBar": {
-        "visible": "always",
-        "backgroundColor": "#17181A",
-        "barStyle": "light-content"
-      },
       "permissions": [
         "INTERNET"
       ]
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#17181A",
+      "barStyle": "light-content"
     },
     "web": {
       "favicon": "./assets/APP-LOGO.png"
@@ -44,6 +43,12 @@
       "expo-secure-store",
       "expo-font",
       "expo-splash-screen"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cc9dbeff-cc9b-45e6-86fa-93a690ca8cc6"
+      }
+    }
   }
 }
