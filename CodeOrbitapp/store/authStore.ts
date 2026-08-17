@@ -57,22 +57,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { disconnectSocket } = require('../services/socket');
       disconnectSocket();
     } catch {}
-    try {
-      const { useSessionStore } = require('./sessionStore');
-      useSessionStore.getState().resetSession();
-    } catch {}
-    try {
-      const { useSessionHistoryStore } = require('./sessionHistoryStore');
-      useSessionHistoryStore.getState().clearHistory();
-    } catch {}
-    try {
-      const { useMessageStore } = require('./messageStore');
-      useMessageStore.getState().clearAllMessages();
-    } catch {}
-    try {
-      const { useNotificationStore } = require('./notificationStore');
-      useNotificationStore.getState().clearAllNotifications();
-    } catch {}
     await SecureStore.deleteItemAsync('auth_token').catch(() => {});
     await SecureStore.deleteItemAsync('user_data').catch(() => {});
     set({ user: null, isGuest: false, token: null });
