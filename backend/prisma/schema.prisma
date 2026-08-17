@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  username      String    @unique @map("username")
+  password      String?
+  name          String
+  avatarUrl     String?   @map("avatar_url")
+  authProvider  String?   @map("auth_provider")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  sessions      Session[]
+  participants  Participant[]
+
+  @@map("users")
+}
+
+model Session {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  hostId          String    @map("host_id")
+  status          String    @default("waiting")
+  languagePreset  String    @map("language_preset")
+  approvalMode    String    @default("approval_required") @map("approval_mode")
+  maxParticipants Int       @default(2) @map("max_participants")
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+  endedAt         DateTime? @map("ended_at")
+
+  host            User      @relation(fields: [hostId], references: [id])
+  participants    Participant[]
+  fileTabs        FileTab[]
+  chatMessages    ChatMessage[]
+  runLogs         RunLog[]
+  annotations     AnnotationStroke[]
+
+  @@map("sessions")
+}
+
+model Participant {
+  id          String    @id @default(uuid())
+  sessionId   String    @map("session_id")
+  userId      String?   @map("user_id")
+  guestName   String?   @map("guest_name")
+  role        String    @default("co_editor")
+  status      String    @default("active")
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+  leftAt      DateTime? @map("left_at")
+
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id])
+  chatMessages ChatMessage[]
+  runLogs     RunLog[]
+  annotations AnnotationStroke[]
+
+  @@map("participants")
+}
+
+model FileTab {
+  id          String    @id @default(uuid())
+  sessionId   String    @map("session_id")
+  filename    String
+  language    String
+  content     String    @default("")
+  orderIndex  Int       @default(0) @map("order_index")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, filename])
+  @@map("file_tabs")
+}
+
+model ChatMessage {
+  id            String    @id @default(uuid())
+  sessionId     String    @map("session_id")
+  participantId String    @map("participant_id")
+  text          String
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model RunLog {
+  id            String    @id @default(uuid())
+  sessionId     String    @map("session_id")
+  participantId String    @map("participant_id")
+  language      String
+  stdin         String?
+  stdout        String    @default("")
+  stderr        String    @default("")
+  exitCode      Int       @default(0) @map("exit_code")
+  durationMs    Int       @default(0) @map("duration_ms")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@map("run_logs")
+}
+
+model AnnotationStroke {
+  id            String    @id @default(uuid())
+  sessionId     String    @map("session_id")
+  participantId String    @map("participant_id")
+  points        Json
+  color         String
+  width         Float
+  toolType      String    @map("tool_type")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  session       Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@map("annotation_strokes")
+}

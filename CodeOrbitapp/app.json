@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "CodeOrbit",
+    "slug": "codeorbit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/APP-LOGO.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "codeorbit",
+    "jsEngine": "hermes",
+    "splash": {
+      "image": "./assets/APP-LOGO.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#17181A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codeorbit.app",
+      "jsEngine": "hermes"
+    },
+    "android": {
+      "package": "com.codeorbit.app",
+      "jsEngine": "hermes",
+      "adaptiveIcon": {
+        "backgroundColor": "#17181A",
+        "foregroundImage": "./assets/APP-LOGO.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "androidNavigationBar": {
+        "visible": "always",
+        "backgroundColor": "#17181A",
+        "barStyle": "light-content"
+      },
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/APP-LOGO.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-splash-screen"
+    ]
+  }
+}
