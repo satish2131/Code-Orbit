@@ -17,38 +17,45 @@ export interface HistorySessionItem {
   isHost: boolean;
 }
 
+const sanitizeKey = (k: string) => k.replace(/[^a-zA-Z0-9_.-]/g, '_');
+
 const getStorageKey = () => {
   try {
     const { useAuthStore } = require('./authStore');
     const currentUser = useAuthStore.getState().user;
-    return currentUser?.id
+    const key = currentUser?.id
       ? `codeorbit_session_history_${currentUser.id}`
       : 'codeorbit_session_history_guest';
+    return sanitizeKey(key);
   } catch (e) {
     return 'codeorbit_session_history_guest';
   }
 };
 
 const saveToSecureStore = (key: string, sessions: HistorySessionItem[]) => {
-  // Keep only the most recent 10 sessions to prevent exceeding SecureStore 2048-byte limit
-  const compact = sessions.slice(0, 10).map((s) => ({
-    id: s.id,
-    code: s.code,
-    languagePreset: s.languagePreset,
-    approvalMode: s.approvalMode,
-    maxParticipants: s.maxParticipants,
-    status: s.status,
-    createdAt: s.createdAt,
-    endedAt: s.endedAt,
-    hostName: s.hostName,
-    participantCount: s.participantCount,
-    isHost: s.isHost,
-  }));
-  const payload = JSON.stringify(compact);
-  if (payload.length < 1900) {
-    SecureStore.setItemAsync(key, payload).catch(() => {});
-  } else {
-    SecureStore.setItemAsync(key, JSON.stringify(compact.slice(0, 5))).catch(() => {});
+  try {
+    // Keep only the most recent 10 sessions to prevent exceeding SecureStore 2048-byte limit
+    const compact = sessions.slice(0, 10).map((s) => ({
+      id: s.id,
+      code: s.code,
+      languagePreset: s.languagePreset,
+      approvalMode: s.approvalMode,
+      maxParticipants: s.maxParticipants,
+      status: s.status,
+      createdAt: s.createdAt,
+      endedAt: s.endedAt,
+      hostName: s.hostName,
+      participantCount: s.participantCount,
+      isHost: s.isHost,
+    }));
+    const payload = JSON.stringify(compact);
+    if (payload.length < 1900) {
+      SecureStore.setItemAsync(key, payload).catch(() => {});
+    } else {
+      SecureStore.setItemAsync(key, JSON.stringify(compact.slice(0, 5))).catch(() => {});
+    }
+  } catch (e) {
+    // Ignore cache failure
   }
 };
 
@@ -135,13 +142,13 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
         );
 
         set({
-          historySessions: mergedSessions,
+          historySessions: serverSessions,
           isInitialized: true,
           isLoading: false,
           lastSyncedAt: Date.now(),
           syncStatus: 'idle',
         });
-        saveToSecureStore(storageKey, mergedSessions);
+        saveToSecureStore(storageKey, serverSessions);
         return;
       }
     } catch (apiErr) {
@@ -219,11 +226,17 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
     );
     set({ historySessions: updated });
     saveToSecureStore(storageKey, updated);
+    api.sessions.deleteHistory(idOrCode).catch((err) => {
+      console.warn('Failed to delete history record on server:', err);
+    });
   },
 
   clearHistory: () => {
     const storageKey = getStorageKey();
     set({ historySessions: [] });
     SecureStore.setItemAsync(storageKey, JSON.stringify([])).catch(() => {});
+    api.sessions.clearHistory().catch((err) => {
+      console.warn('Failed to clear history on server:', err);
+    });
   },
 }));

@@ -123,6 +123,44 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response) => 
   }
 });
 
+router.delete('/history', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const prisma = req.app.get('prisma') as PrismaClient;
+    await prisma.participant.deleteMany({
+      where: {
+        userId: req.userId,
+      },
+    });
+    res.json({ success: true, message: 'All session history cleared' });
+  } catch (error) {
+    console.error('Clear history error:', error);
+    res.status(500).json({ message: 'Failed to clear session history' });
+  }
+});
+
+router.delete('/history/:idOrCode', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const prisma = req.app.get('prisma') as PrismaClient;
+    const idOrCode = String(req.params.idOrCode);
+
+    await prisma.participant.deleteMany({
+      where: {
+        userId: req.userId,
+        OR: [
+          { sessionId: idOrCode },
+          { id: idOrCode },
+          { session: { code: idOrCode } },
+        ],
+      },
+    });
+
+    res.json({ success: true, message: 'Session removed from history' });
+  } catch (error) {
+    console.error('Delete session history error:', error);
+    res.status(500).json({ message: 'Failed to delete session record' });
+  }
+});
+
 router.post('/:code/start', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const prisma = req.app.get('prisma') as PrismaClient;

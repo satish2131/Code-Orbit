@@ -16,11 +16,14 @@ export interface NotificationItem {
   data?: Record<string, any>;
 }
 
+const sanitizeKey = (k: string) => k.replace(/[^a-zA-Z0-9_.-]/g, '_');
+
 const getStorageKey = () => {
   try {
     const { useAuthStore } = require('./authStore');
     const currentUserId = useAuthStore.getState().user?.id;
-    return currentUserId ? `codeorbit_notifications_${currentUserId}` : 'codeorbit_notifications_guest';
+    const key = currentUserId ? `codeorbit_notifications_${currentUserId}` : 'codeorbit_notifications_guest';
+    return sanitizeKey(key);
   } catch (e) {
     return 'codeorbit_notifications_guest';
   }

@@ -23,13 +23,8 @@
       "jsEngine": "hermes",
       "adaptiveIcon": {
         "backgroundColor": "#17181A",
-        "foregroundImage": "./assets/APP-LOGO.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "permissions": [
-        "INTERNET"
-      ]
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
     },
     "androidNavigationBar": {
       "backgroundColor": "#17181A",
@@ -42,7 +37,19 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan session QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to select profile pictures."
+        }
+      ]
     ],
     "extra": {
       "router": {},

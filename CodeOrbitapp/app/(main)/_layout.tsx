@@ -15,7 +15,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   // Elevate floating tab bar above Android 3-button navigation bar / gesture bar / iOS home indicator
   const bottomOffset = insets.bottom > 0 ? insets.bottom + 8 : (Platform.OS === 'ios' ? 26 : 14);
 
-  const currentRouteName = state.routes[state.index]?.name;
+  const currentRouteName = (state?.routes && state.routes[state?.index]?.name) || '';
+  const safePathname = typeof pathname === 'string' ? pathname : '';
   const hiddenRoutes = [
     'ai-assistant',
     'create-session',
@@ -36,7 +37,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
   if (
     hiddenRoutes.includes(currentRouteName) ||
-    hiddenRoutes.some((r) => pathname.endsWith(`/${r}`) || pathname.includes(`/${r}`))
+    hiddenRoutes.some((r) => safePathname.endsWith(`/${r}`) || safePathname.includes(`/${r}`))
   ) {
     return null;
   }
@@ -53,11 +54,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     <View style={[styles.tabBarWrapper, { bottom: bottomOffset }]}>
       <View style={styles.tabBarContainer}>
         {tabs.map((tab) => {
-          const currentRoute = state.routes[state.index]?.name || '';
+          const currentRoute = (state?.routes && state.routes[state?.index]?.name) || '';
           const isFocused =
             currentRoute === tab.route ||
-            currentRoute.startsWith(tab.key) ||
-            pathname.includes(tab.key);
+            (currentRoute ? currentRoute.startsWith(tab.key) : false) ||
+            safePathname.includes(tab.key);
 
           const color = isFocused ? '#EF4444' : APP_COLORS.textSecondary;
           const iconName = isFocused ? tab.iconFocused : tab.iconUnfocused;

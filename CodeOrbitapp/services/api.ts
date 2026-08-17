@@ -99,6 +99,8 @@ export const api = {
       }),
     getByCode: (code: string) => fetchApi(`/sessions/${code}`),
     getHistory: () => fetchApi('/sessions/history'),
+    clearHistory: () => fetchApi('/sessions/history', { method: 'DELETE' }),
+    deleteHistory: (idOrCode: string) => fetchApi(`/sessions/history/${encodeURIComponent(idOrCode)}`, { method: 'DELETE' }),
     start: (code: string) =>
       fetchApi(`/sessions/${code}/start`, { method: 'POST' }),
     end: (sessionId: string) =>

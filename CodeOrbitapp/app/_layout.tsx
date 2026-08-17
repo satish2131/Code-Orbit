@@ -50,10 +50,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (user && appIsReady) {
-      const cleanup = initializeSocket();
-      return cleanup;
+      try {
+        const cleanup = initializeSocket();
+        return cleanup;
+      } catch (err) {
+        console.warn('Socket initialization error in RootLayout:', err);
+      }
     }
-  }, [user, appIsReady, initializeSocket]);
+  }, [user?.id, appIsReady, initializeSocket]);
 
   if (!appIsReady) {
     return (
