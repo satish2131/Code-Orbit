@@ -6,39 +6,62 @@ let socket: Socket | null = null;
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(WS_URL, {
-      transports: ['websocket'],
-      autoConnect: false,
-    });
+    try {
+      socket = io(WS_URL, {
+        transports: ['websocket', 'polling'],
+        autoConnect: false,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 20000,
+      });
+
+      socket.on('connect_error', (err) => {
+        console.warn('Socket connect_error:', err?.message || err);
+      });
+
+      socket.on('error', (err) => {
+        console.warn('Socket error:', err);
+      });
+    } catch (e) {
+      console.warn('Failed to initialize socket:', e);
+    }
   }
-  return socket;
+  return socket as Socket;
 };
 
 export const connectSocket = async (userId?: string, guestName?: string) => {
-  const s = getSocket();
-  if (!s.connected) {
-    const token = await SecureStore.getItemAsync('auth_token');
-    const userDataStr = await SecureStore.getItemAsync('user_data');
-    let effectiveUserId = userId;
-    let effectiveGuestName = guestName;
-    if (!effectiveUserId && userDataStr) {
-      try {
-        const u = JSON.parse(userDataStr);
-        effectiveUserId = u.id;
-        effectiveGuestName = u.name;
-      } catch {}
+  try {
+    const s = getSocket();
+    if (s && !s.connected) {
+      const token = await SecureStore.getItemAsync('auth_token').catch(() => null);
+      const userDataStr = await SecureStore.getItemAsync('user_data').catch(() => null);
+      let effectiveUserId = userId;
+      let effectiveGuestName = guestName;
+      if (!effectiveUserId && userDataStr) {
+        try {
+          const u = JSON.parse(userDataStr);
+          effectiveUserId = u?.id;
+          effectiveGuestName = u?.name;
+        } catch {}
+      }
+      s.auth = { userId: effectiveUserId, guestName: effectiveGuestName, token };
+      s.connect();
     }
-    s.auth = { userId: effectiveUserId, guestName: effectiveGuestName, token };
-    s.connect();
+    return s;
+  } catch (err) {
+    console.warn('connectSocket error:', err);
+    return null as any;
   }
-  return s;
 };
 
 export const disconnectSocket = () => {
-  if (socket?.connected) {
-    socket.disconnect();
+  try {
+    if (socket?.connected) {
+      socket.disconnect();
+    }
     socket = null;
-  }
+  } catch (e) {}
 };
 
 export const sendCursorPosition = (sessionCode: string, position: { line: number; column: number; participant_id: string; participant_name: string; color: string }) => {
