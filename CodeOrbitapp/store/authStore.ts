@@ -28,25 +28,37 @@ interface AuthState {
 // Normalise the user object coming from the backend.
 // The backend may return camelCase (avatarUrl, authProvider, createdAt)
 // while the app types use snake_case (avatar_url, auth_provider, created_at).
-// Map BOTH onto the User so every consumer works regardless of shape.
+// ALL optional fields are safely defaulted — a user with only { id, email }
+// MUST NOT crash the application.
 function normaliseUser(raw: any): User {
   if (!raw || typeof raw !== 'object') {
     throw new Error('[AUTH] Received invalid user object from server');
   }
 
-  const user: User = {
-    id:            raw.id,
-    name:          raw.name          ?? raw.username ?? 'User',
-    email:         raw.email,
-    username:      raw.username,
-    avatar_url:    raw.avatar_url    ?? raw.avatarUrl,
-    auth_provider: raw.auth_provider ?? raw.authProvider,
-    created_at:    raw.created_at    ?? raw.createdAt ?? new Date().toISOString(),
-  };
-
-  if (!user.id) {
+  if (!raw.id) {
     throw new Error('[AUTH] User object missing required id field');
   }
+
+  // Derive a display name from whatever the server sends, in priority order.
+  // Never leave name as null/undefined — fall back to email prefix or 'User'.
+  const derivedName: string =
+    (typeof raw.name === 'string' && raw.name.trim())
+      ? raw.name.trim()
+      : (typeof raw.username === 'string' && raw.username.trim())
+        ? raw.username.trim()
+        : (typeof raw.email === 'string' && raw.email.includes('@'))
+          ? raw.email.split('@')[0]
+          : 'User';
+
+  const user: User = {
+    id:            String(raw.id),
+    name:          derivedName,
+    email:         raw.email        ?? undefined,
+    username:      raw.username     ?? undefined,
+    avatar_url:    raw.avatar_url   ?? raw.avatarUrl    ?? undefined,
+    auth_provider: raw.auth_provider ?? raw.authProvider ?? undefined,
+    created_at:    raw.created_at   ?? raw.createdAt    ?? new Date().toISOString(),
+  };
 
   return user;
 }

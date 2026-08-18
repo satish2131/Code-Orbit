@@ -137,24 +137,34 @@ export default function UserSearchScreen() {
   }, [searchQuery]);
 
   const handleStartChat = (user: UserItem | RecentSearchItem) => {
+    const safeName     = user.name     || user.username || 'User';
+    const safeUsername = user.username || user.name     || 'user';
+
     // Add selected user to recent searches
     addRecentSearch({
       id: user.id,
-      name: user.name,
-      username: user.username,
+      name: safeName,
+      username: safeUsername,
       color: user.color || PRESET_COLORS[0],
     });
 
-    const displayName = user.name ? `${user.name} (@${user.username})` : `@${user.username}`;
+    const displayName = user.name
+      ? `${user.name} (@${safeUsername})`
+      : `@${safeUsername}`;
     const newChatId = addChat(displayName, 'Started a new conversation');
     const targetChat = useMessageStore.getState().chats.find((c) => c.id === newChatId);
+
+    // Safe avatar initial — never call .charAt(0) on a potentially null value
+    const avatarInitial =
+      targetChat?.avatar ||
+      (safeName.trim() ? safeName.trim().charAt(0).toUpperCase() : '?');
 
     router.replace({
       pathname: '/(main)/chat-thread',
       params: {
         id: newChatId,
         name: displayName,
-        avatar: targetChat?.avatar || user.name.charAt(0).toUpperCase(),
+        avatar: avatarInitial,
         color: targetChat?.color || user.color || PRESET_COLORS[0],
         status: 'Online',
       },
