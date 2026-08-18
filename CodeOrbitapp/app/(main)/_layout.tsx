@@ -69,11 +69,10 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               activeOpacity={0.7}
               style={styles.tabItem}
               onPress={() => {
-                if (navigation?.navigate) {
-                  navigation.navigate(tab.route);
-                } else {
-                  router.push(`/(main)/${tab.route}` as any);
-                }
+                if (tab.key === 'home') router.push('/(main)/home');
+                else if (tab.key === 'history') router.push('/(main)/history');
+                else if (tab.key === 'messages') router.push('/(main)/messages');
+                else if (tab.key === 'profile') router.push('/(main)/profile');
               }}
               accessibilityRole="button"
               accessibilityLabel={tab.label}

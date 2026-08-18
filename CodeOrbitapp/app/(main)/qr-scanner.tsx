@@ -34,14 +34,11 @@ export default function QRScannerScreen() {
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
 
-  // Only request camera permission when user is actively on this screen and taps grant
-  const handleRequestPermission = async () => {
-    try {
-      await requestPermission();
-    } catch (e) {
-      console.warn('Camera permission request error:', e);
+  useEffect(() => {
+    if (!permission?.granted) {
+      requestPermission();
     }
-  };
+  }, [permission]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -179,7 +176,7 @@ export default function QRScannerScreen() {
         <Text style={styles.permissionSubtitle}>
           CodeOrbit requires camera access to scan session QR codes and join collaborative rooms instantly.
         </Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={handleRequestPermission}>
+        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
           <Text style={styles.permissionButtonText}>Grant Permission</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>

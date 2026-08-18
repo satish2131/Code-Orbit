@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
-import { useAuthStore } from './authStore';
 
 export interface HistorySessionItem {
   id: string;
@@ -22,6 +21,7 @@ const sanitizeKey = (k: string) => k.replace(/[^a-zA-Z0-9_.-]/g, '_');
 
 const getStorageKey = () => {
   try {
+    const { useAuthStore } = require('./authStore');
     const currentUser = useAuthStore.getState().user;
     const key = currentUser?.id
       ? `codeorbit_session_history_${currentUser.id}`
@@ -107,37 +107,39 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
       set({ isLoading: localSessions.length === 0, syncStatus: 'syncing' });
       const res = await api.sessions.getHistory();
       if (res && Array.isArray(res.sessions)) {
-        const currentUserId = useAuthStore.getState().user?.id;
+        const currentUserId = require('./authStore').useAuthStore.getState().user?.id;
         const serverSessions: HistorySessionItem[] = res.sessions
           .filter(
             (s: any) =>
-              s &&
               s.status !== 'waiting' &&
               (!currentUserId ||
                 s.hostId === currentUserId ||
                 (s.participants &&
                   s.participants.some(
-                    (p: any) => p && (p.userId === currentUserId || p.id === currentUserId)
+                    (p: any) => p.userId === currentUserId || p.id === currentUserId
                   )))
           )
           .map((s: any) => ({
-            id: s.id || 'sess_' + s.code,
-            code: s.code || '',
+            id: s.id,
+            code: s.code,
             languagePreset: s.languagePreset || s.language_preset || 'python',
             approvalMode: s.approvalMode || s.approval_mode || 'open',
             maxParticipants: s.maxParticipants || s.max_participants || 2,
             status: s.status || 'ended',
-            createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-            endedAt: s.endedAt || s.ended_at || null,
+            createdAt: s.createdAt || s.created_at,
+            endedAt: s.endedAt || s.ended_at,
             hostName: s.host?.name || s.hostName || (s.isHost ? 'You' : 'Collaborator'),
             hostId: s.hostId,
             participantCount: s.participants?.length || s.participantCount || 1,
             isHost: s.isHost ?? (currentUserId ? s.hostId === currentUserId : true),
-          }))
-          .sort(
-            (a: HistorySessionItem, b: HistorySessionItem) =>
-              (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
-          );
+          }));
+
+        // Merge server sessions with any locally created ones that might not have reached server yet
+        const existingCodes = new Set(serverSessions.map((s) => s.code));
+        const localOnly = localSessions.filter((s) => !existingCodes.has(s.code));
+        const mergedSessions = [...localOnly, ...serverSessions].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
         set({
           historySessions: serverSessions,

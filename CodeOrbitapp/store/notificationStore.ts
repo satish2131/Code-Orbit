@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { useAuthStore } from './authStore';
 
 export interface NotificationItem {
   id: string;
@@ -21,6 +20,7 @@ const sanitizeKey = (k: string) => k.replace(/[^a-zA-Z0-9_.-]/g, '_');
 
 const getStorageKey = () => {
   try {
+    const { useAuthStore } = require('./authStore');
     const currentUserId = useAuthStore.getState().user?.id;
     const key = currentUserId ? `codeorbit_notifications_${currentUserId}` : 'codeorbit_notifications_guest';
     return sanitizeKey(key);

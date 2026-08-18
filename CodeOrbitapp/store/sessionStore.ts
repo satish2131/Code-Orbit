@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { Session, Participant, FileTab, ChatMessage, RunLog, SessionSnapshot } from '../types';
-import { useAuthStore } from './authStore';
 
 export interface EditPermissionRequest {
   participantId: string;
@@ -97,6 +96,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 
       let hostFlag = state.isHost;
       try {
+        const { useAuthStore } = require('./authStore');
         const currentUserId = useAuthStore.getState().user?.id;
         if (
           currentUserId &&

@@ -137,11 +137,19 @@ export default function SignupScreen() {
     setErrors({});
     setLoading(true);
     try {
+      console.log('[AUTH] Signup: calling API...');
       const result = await api.auth.signup(email.trim(), username.trim().toLowerCase(), password, name.trim());
+
+      if (!result?.user || !result?.token) {
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
+
+      console.log('[AUTH] Signup: API success, persisting session...');
+      // setUser sets status → AUTHENTICATED; AuthGate handles navigation
       await setUser(result.user, result.token);
-      router.replace('/(main)/home');
+      console.log('[AUTH] Signup: done — AuthGate will navigate');
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error('[AUTH] Signup error:', error);
       const msg = error?.message || 'Failed to create your account. Please try again.';
       if (msg.toLowerCase().includes('username')) {
         setErrors({ username: msg, auth: msg });

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { Ionicons } from '@expo/vector-icons';
 import { Image, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { useSessionSocket } from '../hooks/useSessionSocket';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,39 +18,80 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 const HERO_IMAGE = require('../assets/images/auth_hero_banner.png');
 
-export default function RootLayout() {
-  const { restoreSession } = useAuthStore();
-  const [appIsReady, setAppIsReady] = useState(false);
+// AuthGate: the single, authoritative source of navigation decisions.
+// This component runs INSIDE the Stack navigator (so expo-router is ready),
+// and handles the redirect when auth status changes.
+function AuthGate() {
+  const { status } = useAuthStore();
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
+    if (status === 'AUTH_LOADING') return; // Don't navigate while hydrating
+
+    const inMainGroup = segments[0] === '(main)';
+    const inAuthGroup = segments[0] === '(auth)';
+    const atIndex     = !segments[0] || segments[0] === 'index';
+
+    if (status === 'AUTHENTICATED') {
+      // Only redirect to home if currently on auth/index screens
+      if (inAuthGroup || atIndex) {
+        console.log('[AUTH] AuthGate: authenticated → /(main)/home');
+        router.replace('/(main)/home');
+      }
+    } else {
+      // UNAUTHENTICATED: redirect away from protected screens
+      if (inMainGroup) {
+        console.log('[AUTH] AuthGate: unauthenticated → /(auth)/welcome');
+        router.replace('/(auth)/welcome');
+      }
+    }
+  }, [status, segments]);
+
+  return null;
+}
+
+export default function RootLayout() {
+  const { restoreSession, status, user } = useAuthStore();
+  const { initializeSocket } = useSessionSocket();
+  const [appIsReady, setAppIsReady] = useState(false);
+
+  // Phase 1: preload assets + restore session (run once)
+  useEffect(() => {
     async function prepareInitialRender() {
+      console.log('[AUTH] App starting — preloading assets and restoring session...');
       try {
-        // Parallelize critical asset preloading & auth session restoration
-        // Prevents render-blocking resource delays on First Contentful Paint (FCP)
         await Promise.all([
-          // 1. Preload icon fonts to prevent FOIT (Flash of Invisible Text)
           Font.loadAsync(Ionicons.font),
-          // 2. Preload LCP hero image asset so auth screens render instantly
           Image.prefetch(Image.resolveAssetSource(HERO_IMAGE).uri).catch(() => {}),
-          // 3. Restore cached auth session asynchronously before mounting screens
           restoreSession(),
         ]);
       } catch (error) {
-        console.warn('Initialization error:', error);
+        console.warn('[AUTH] Initialization error:', error);
       } finally {
         setAppIsReady(true);
-        // Hide splash screen once initial paint resources are ready
         await SplashScreen.hideAsync().catch(() => {});
+        console.log('[AUTH] App ready, status =', useAuthStore.getState().status);
       }
     }
-
     prepareInitialRender();
   }, []);
 
+  // Phase 2: connect socket when user becomes available
+  useEffect(() => {
+    if (user?.id && appIsReady) {
+      try {
+        const cleanup = initializeSocket();
+        return cleanup;
+      } catch (err) {
+        console.warn('[AUTH] Socket initialization error:', err);
+      }
+    }
+  }, [user?.id, appIsReady]);
+
+  // Show blank screen while preparing (SplashScreen is still visible)
   if (!appIsReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#17181A' }} />
-    );
+    return <View style={{ flex: 1, backgroundColor: '#17181A' }} />;
   }
 
   return (
@@ -68,6 +110,9 @@ export default function RootLayout() {
           <Stack.Screen name="(main)" options={{ headerShown: false }} />
           <Stack.Screen name="session/[code]" options={{ headerShown: false }} />
         </Stack>
+
+        {/* AuthGate lives inside Stack so expo-router navigation APIs are ready */}
+        <AuthGate />
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

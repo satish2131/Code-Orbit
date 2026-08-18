@@ -70,14 +70,6 @@ export const useSessionSocket = () => {
       console.log('Connected to server');
     });
 
-    socket.on('connect_error', (err: any) => {
-      console.warn('Socket connect_error in hook:', err?.message || err);
-    });
-
-    socket.on('error', (err: any) => {
-      console.warn('Socket error in hook:', err);
-    });
-
     socket.on('session_created', (data: any) => {
       const sessionObj = data.session || data;
       useSessionStore.getState().hydrateSessionSnapshot({

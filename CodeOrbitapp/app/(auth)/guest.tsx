@@ -23,7 +23,7 @@ export default function GuestScreen() {
 
     setNameError(undefined);
     setGuest(name.trim());
-    router.replace('/(main)/home');
+    // setGuest sets status → AUTHENTICATED; AuthGate in _layout.tsx handles navigation to home
   };
 
   return (

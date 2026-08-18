@@ -68,11 +68,21 @@ export default function LoginScreen() {
     setErrors({});
     setLoading(true);
     try {
+      console.log('[AUTH] Login: calling API...');
       const result = await api.auth.login(email.trim(), password);
+
+      // Validate the response shape before touching state
+      if (!result?.user || !result?.token) {
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
+
+      console.log('[AUTH] Login: API success, persisting session...');
+      // setUser persists to SecureStore and sets status → AUTHENTICATED
+      // AuthGate in _layout.tsx will detect the status change and navigate to home
       await setUser(result.user, result.token);
-      router.replace('/(main)/home');
+      console.log('[AUTH] Login: done — AuthGate will navigate');
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('[AUTH] Login error:', error);
       const msg = error?.message || 'The email or password you entered is incorrect.';
       setErrors((prev) => ({ ...prev, auth: msg }));
     } finally {
