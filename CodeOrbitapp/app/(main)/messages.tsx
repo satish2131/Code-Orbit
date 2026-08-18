@@ -67,8 +67,8 @@ export default function MessagesScreen() {
       const query = searchQuery.toLowerCase();
       result = result.filter(
         (c) =>
-          c.name.toLowerCase().includes(query) ||
-          c.lastMessage.toLowerCase().includes(query)
+          (c.name || '').toLowerCase().includes(query) ||
+          (c.lastMessage || '').toLowerCase().includes(query)
       );
     }
     return result;
@@ -385,7 +385,9 @@ const ChatRowItem = React.memo(function ChatRowItem({
         {/* Avatar with Online Status Indicator */}
         <View style={styles.avatarWrapper}>
           <View style={[styles.chatAvatar, { backgroundColor: chat.color || '#EF4444' }]}>
-            <Text style={styles.chatAvatarText}>{chat.avatar || chat.name.charAt(0)}</Text>
+            <Text style={styles.chatAvatarText}>
+              {chat.avatar || (chat.name ? chat.name.charAt(0) : '?')}
+            </Text>
           </View>
           <View
             style={[

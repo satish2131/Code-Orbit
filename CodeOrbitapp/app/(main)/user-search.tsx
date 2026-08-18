@@ -75,13 +75,17 @@ export default function UserSearchScreen() {
   };
 
   const addRecentSearch = (item: RecentSearchItem) => {
-    const filtered = recentSearches.filter((r) => r.username.toLowerCase() !== item.username.toLowerCase());
+    const filtered = recentSearches.filter(
+      (r) => (r.username || '').toLowerCase() !== (item.username || '').toLowerCase()
+    );
     const updated = [item, ...filtered].slice(0, 10);
     saveRecentSearches(updated);
   };
 
   const removeRecentSearch = (username: string) => {
-    const updated = recentSearches.filter((r) => r.username.toLowerCase() !== username.toLowerCase());
+    const updated = recentSearches.filter(
+      (r) => (r.username || '').toLowerCase() !== (username || '').toLowerCase()
+    );
     saveRecentSearches(updated);
   };
 
@@ -291,7 +295,10 @@ export default function UserSearchScreen() {
               </View>
             ) : (
               users.map((person) => {
-                const avatarInitial = person.name.charAt(0).toUpperCase();
+                const personDisplayName = person.name || person.username || 'U';
+                const avatarInitial = personDisplayName.trim()
+                  ? personDisplayName.trim().charAt(0).toUpperCase()
+                  : '?';
 
                 return (
                   <TouchableOpacity

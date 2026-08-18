@@ -123,16 +123,16 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   addChat: (name: string, initialMessage = 'Started a new conversation') => {
     const { chatsKey, messagesKey } = getStorageKeys();
-    const trimmedName = name.trim();
+    const trimmedName = (name || '').trim();
     const existing = get().chats.find(
-      (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
+      (c) => (c.name || '').toLowerCase() === trimmedName.toLowerCase()
     );
     if (existing) {
       return existing.id;
     }
 
     const chatId = Date.now().toString();
-    const avatar = trimmedName.charAt(0).toUpperCase();
+    const avatar = trimmedName ? trimmedName.charAt(0).toUpperCase() : '?';
     const color = CHAT_COLORS[Math.floor(Math.random() * CHAT_COLORS.length)];
     const timeStr = formatCurrentTime();
 
