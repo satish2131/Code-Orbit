@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
-import { bufferTabChange, flushSessionWrites } from './bufferService';
+import { bufferTabChange, flushSessionWrites, invalidateTabBuffer } from './bufferService';
 import { touchSessionActivity, INACTIVITY_TIMEOUT_SECONDS } from './sessionCleanupService';
 
 interface AuthData {
@@ -451,6 +451,7 @@ export const setupSocketHandlers = (io: Server, prisma: PrismaClient, redis: Red
         return;
       }
 
+      invalidateTabBuffer(tabId);
       await prisma.fileTab.delete({ where: { id: tabId } }).catch(() => {});
 
       const allTabs = await prisma.fileTab.findMany({
@@ -509,6 +510,22 @@ export const setupSocketHandlers = (io: Server, prisma: PrismaClient, redis: Red
         return;
       }
 
+      // Server-side Tab Validation: Validate that tab exists and belongs to this session
+      const tab = await prisma.fileTab.findFirst({
+        where: {
+          id: tabId,
+          sessionId: room.sessionId,
+        },
+      });
+
+      if (!tab) {
+        socket.emit('session_error', {
+          code: 'TAB_NOT_FOUND',
+          message: 'File tab does not exist in this session.',
+        });
+        return;
+      }
+
       bufferTabChange(prisma, tabId, content, room.sessionId);
       touchSessionActivity(prisma, redis, room.sessionId, sessionCode);
 
@@ -561,38 +578,74 @@ export const setupSocketHandlers = (io: Server, prisma: PrismaClient, redis: Red
     });
 
     socket.on('chat_message', async (data: { sessionCode: string; text: string }) => {
-      const room = sessionRooms.get(socket.id);
-      if (!room) return;
+      try {
+        const { sessionCode, text } = data;
+        if (!text || !text.trim()) return;
 
-      const participant = await prisma.participant.findFirst({
-        where: {
-          sessionId: room.sessionId,
-          userId: socket.data.userId,
-        },
-      });
+        const room = sessionRooms.get(socket.id);
+        const effectiveSessionId = room?.sessionId;
+        const userIdStr = String(socket.data.userId || '');
 
-      if (!participant) return;
+        let participant = null;
+        if (effectiveSessionId) {
+          participant = await prisma.participant.findFirst({
+            where: {
+              sessionId: effectiveSessionId,
+              OR: [
+                { userId: userIdStr },
+                { id: userIdStr },
+              ],
+            },
+            include: {
+              user: { select: { name: true, username: true } },
+            },
+          }).catch(() => null);
+        }
 
-      const message = await prisma.chatMessage.create({
-        data: {
-          sessionId: room.sessionId,
-          participantId: participant.id,
-          text: data.text,
-        },
-        include: {
-          participant: {
-            select: { guestName: true, userId: true },
-          },
-        },
-      });
+        const senderName =
+          participant?.user?.name ||
+          participant?.user?.username ||
+          participant?.guestName ||
+          socket.data.guestName ||
+          'Collaborator';
 
-      io.to(data.sessionCode).emit('chat_message', {
-        id: message.id,
-        participantId: message.participantId,
-        text: message.text,
-        createdAt: message.createdAt,
-        guestName: message.participant.guestName,
-      });
+        const senderId =
+          participant?.userId ||
+          participant?.id ||
+          userIdStr;
+
+        let messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        let createdAt = new Date().toISOString();
+
+        if (effectiveSessionId && participant) {
+          try {
+            const savedMsg = await prisma.chatMessage.create({
+              data: {
+                sessionId: effectiveSessionId,
+                participantId: participant.id,
+                text: text.trim(),
+              },
+            });
+            messageId = savedMsg.id;
+            createdAt = savedMsg.createdAt.toISOString();
+            touchSessionActivity(prisma, redis, effectiveSessionId, sessionCode);
+          } catch (dbErr) {
+            console.warn('[SocketService] Failed to persist chatMessage to DB (non-fatal):', dbErr);
+          }
+        }
+
+        io.to(sessionCode).emit('chat_message', {
+          id: messageId,
+          senderId,
+          senderName,
+          participantId: participant?.id || senderId,
+          text: text.trim(),
+          createdAt,
+          timestamp: createdAt,
+        });
+      } catch (err) {
+        console.error('[SocketService] chat_message handler error:', err);
+      }
     });
 
     socket.on('run_code', async (data: {

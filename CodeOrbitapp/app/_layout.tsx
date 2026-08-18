@@ -39,9 +39,9 @@ function AuthGate() {
         console.log('[AUTH] AuthGate: authenticated → /(main)/home');
         router.replace('/(main)/home');
       }
-    } else {
-      // UNAUTHENTICATED: redirect away from protected screens
-      if (inMainGroup) {
+    } else if (status === 'UNAUTHENTICATED') {
+      // UNAUTHENTICATED: redirect to welcome if on protected main screens or initial index
+      if (inMainGroup || atIndex) {
         console.log('[AUTH] AuthGate: unauthenticated → /(auth)/welcome');
         router.replace('/(auth)/welcome');
       }

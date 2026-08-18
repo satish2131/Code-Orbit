@@ -102,8 +102,15 @@ export const useSessionHistoryStore = create<SessionHistoryState>((set, get) => 
       // Ignore parse failure
     }
 
-    // 2. Fetch fresh history from server
+    // 2. Fetch fresh history from server if authenticated
     try {
+      const { useAuthStore } = require('./authStore');
+      const isAuthenticated = useAuthStore.getState().isAuthenticated;
+      if (!isAuthenticated) {
+        set({ historySessions: localSessions, isInitialized: true, isLoading: false, syncStatus: 'idle' });
+        return;
+      }
+
       set({ isLoading: localSessions.length === 0, syncStatus: 'syncing' });
       const res = await api.sessions.getHistory();
       if (res && Array.isArray(res.sessions)) {

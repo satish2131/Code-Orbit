@@ -12,6 +12,7 @@ import authRoutes from './routes/auth';
 import sessionRoutes from './routes/sessions';
 import executionRoutes from './routes/execution';
 import contactRoutes from './routes/contact';
+import aiRoutes from './routes/ai';
 import { setupSocketHandlers } from './services/socketService';
 import { startSessionCleanupTask } from './services/sessionCleanupService';
 
@@ -91,6 +92,7 @@ app.use('/auth', authRoutes);
 app.use('/sessions', sessionRoutes);
 app.use('/execution', executionRoutes);
 app.use('/contact', contactRoutes);
+app.use('/ai', aiRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -1,9 +1,18 @@
 import { AIMessage, AIWorkspaceContext } from '../types';
+import { API_URL } from '../constants/config';
+import * as SecureStore from 'expo-secure-store';
 
 export interface AIProviderCapabilities {
   supportsStreaming?: boolean;
   supportsTools?: boolean;
   supportsVision?: boolean;
+}
+
+export interface AIHistoryMessage {
+  id?: string;
+  text: string;
+  role?: 'user' | 'assistant' | 'system';
+  isUser?: boolean;
 }
 
 export interface AIProvider {
@@ -12,97 +21,179 @@ export interface AIProvider {
   capabilities?: AIProviderCapabilities;
   generateResponse(
     prompt: string,
-    history: AIMessage[],
-    context?: AIWorkspaceContext
+    history?: AIHistoryMessage[],
+    context?: AIWorkspaceContext,
+    mode?: 'coding' | 'support'
   ): Promise<string>;
-  generateStream?(
+  generateStream(
     prompt: string,
-    history: AIMessage[],
-    onChunk: (chunk: string) => void,
-    context?: AIWorkspaceContext
-  ): Promise<void>;
+    history?: AIHistoryMessage[],
+    onChunk?: (chunk: string) => void,
+    context?: AIWorkspaceContext,
+    mode?: 'coding' | 'support'
+  ): Promise<string>;
 }
 
-/**
- * Default AI Assistant Provider implementation
- * Provider-agnostic abstraction layer ready for LLM APIs (Gemini / OpenAI / Claude)
- */
-class DefaultCodeOrbitAIProvider implements AIProvider {
-  id = 'codeorbit-default';
-  name = 'CodeOrbit Core Assistant';
+class GeminiCodeOrbitAIProvider implements AIProvider {
+  id = 'google-gemini';
+  name = 'CodeOrbit Gemini Assistant';
   capabilities: AIProviderCapabilities = {
     supportsStreaming: true,
     supportsTools: true,
     supportsVision: false,
   };
 
+  /**
+   * Primary Gemini Response Generator via backend /ai/chat
+   */
   async generateResponse(
     prompt: string,
-    history: AIMessage[],
-    context?: AIWorkspaceContext
+    history: AIHistoryMessage[] = [],
+    context?: AIWorkspaceContext,
+    mode: 'coding' | 'support' = 'coding'
   ): Promise<string> {
-    const lowerMsg = prompt.toLowerCase();
+    try {
+      let token: string | null = null;
+      try {
+        token = await SecureStore.getItemAsync('auth_token');
+      } catch {}
 
-    // Context-aware enrichment if workspace metadata is supplied
-    let contextHeader = '';
-    if (context?.languagePreset || context?.currentFilename) {
-      contextHeader = `[Context: ${context.languagePreset || 'code'} | File: ${context.currentFilename || 'untitled'}]\n\n`;
+      const formattedHistory = history.map((msg) => ({
+        role: msg.role || (msg.isUser ? 'user' : 'assistant'),
+        content: msg.text,
+      }));
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(`${API_URL}/ai/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          prompt,
+          history: formattedHistory,
+          mode,
+          context: context
+            ? {
+                languagePreset: context.languagePreset,
+                currentFilename: context.currentFilename,
+              }
+            : undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.response && typeof data.response === 'string') {
+          return data.response.trim();
+        }
+      }
+    } catch (err: any) {
+      console.warn('[AIService] Backend AI request failed, using intelligent fallback:', err?.message || err);
     }
 
-    if (lowerMsg.includes('async') || lowerMsg.includes('await') || lowerMsg.includes('promise')) {
-      return (
-        contextHeader +
-        "⚡ **Async/Await in JavaScript/TypeScript:**\n\n`async/await` is modern syntax for handling asynchronous promises in a synchronous-looking style.\n\n```javascript\nasync function fetchUserData(userId) {\n  try {\n    const response = await fetch(`https://api.example.com/users/${userId}`);\n    if (!response.ok) throw new Error('User not found');\n    \n    const user = await response.json();\n    return user;\n  } catch (error) {\n    console.error('Failed to fetch user:', error);\n  }\n}\n```\n\n💡 **Key Takeaways:**\n1. `async` functions always return a Promise.\n2. `await` pauses execution until the Promise settles.\n3. Always wrap `await` calls in `try...catch` blocks for clean error handling."
-      );
-    }
-
-    if (lowerMsg.includes('debug') || lowerMsg.includes('error') || lowerMsg.includes('bug') || lowerMsg.includes('fix')) {
-      return (
-        contextHeader +
-        "🐞 **Debugging Checklist & Strategy:**\n\n1. **Inspect Console Logs:** Output raw inputs/outputs before and after the failing logic.\n2. **Verify Types & Mutability:** Check for `undefined` or `null` property access.\n3. **Isolate Scope:** Test the function independently with sample data.\n4. **Handle Asynchronous Timing:** Ensure promises resolve before reading variables.\n\nPaste your code snippet here and I'll debug it for you line by line!"
-      );
-    }
-
-    if (lowerMsg.includes('react') || lowerMsg.includes('hooks') || lowerMsg.includes('component')) {
-      return (
-        contextHeader +
-        "⚛️ **React Core Best Practices:**\n\n1. **Keep Components Small & Pure:** Render UI based strictly on props & state.\n2. **Use Custom Hooks:** Extract non-UI business logic out of components.\n3. **Optimize Re-renders:** Wrap heavy calculations in `useMemo` and functions in `useCallback`.\n4. **State Co-location:** Keep state as close to where it's used as possible.\n5. **Key Prop:** Always provide a stable, unique `key` when mapping arrays."
-      );
-    }
-
-    if (lowerMsg.includes('python') || lowerMsg.includes('javascript') || lowerMsg.includes('compare')) {
-      return (
-        contextHeader +
-        "🐍 vs 📜 **Python vs JavaScript Comparison:**\n\n• **Python**: Clean indentation syntax, ideal for AI/ML, data science, scripting & backend (Django/FastAPI).\n• **JavaScript**: Event-driven, non-blocking, runs natively in browsers, Node.js, and React Native.\n\n```python\n# Python List Comprehension\nsquares = [x**2 for x in range(10) if x % 2 == 0]\n```\n\n```javascript\n// JavaScript Array Filter & Map\nconst squares = Array.from({length: 10}, (_, i) => i)\n  .filter(x => x % 2 === 0)\n  .map(x => x ** 2);\n```"
-      );
-    }
-
-    if (lowerMsg.includes('binary search') || lowerMsg.includes('search') || lowerMsg.includes('algorithm')) {
-      return (
-        contextHeader +
-        "🚀 **Binary Search Algorithm (O(log n) Time):**\n\n```typescript\nfunction binarySearch(arr: number[], target: number): number {\n  let left = 0;\n  let right = arr.length - 1;\n\n  while (left <= right) {\n    const mid = Math.floor((left + right) / 2);\n    \n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) left = mid + 1;\n    else right = mid - 1;\n  }\n\n  return -1; // Target not found\n}\n```\n\n⏱️ **Complexity:** Time: `O(log n)`, Space: `O(1)`. Requires a sorted array!"
-      );
-    }
-
-    return (
-      contextHeader +
-      "Great question! Here is how to approach this in code:\n\n1. Break the problem into small modular functions.\n2. Write clean, readable code with descriptive variable names.\n3. Handle edge cases (empty inputs, null values, type mismatches).\n\nFeel free to share your code or ask about specific syntax, algorithms, or framework patterns!"
-    );
+    return this.getLocalFallback(prompt, mode, context);
   }
 
+  /**
+   * Guaranteed Token Streaming Animation:
+   * Retrieves full LLM response from Gemini and progressively streams tokens
+   * word-by-word with realistic cadence (15-20ms) into the UI bubble.
+   */
   async generateStream(
     prompt: string,
-    history: AIMessage[],
-    onChunk: (chunk: string) => void,
-    context?: AIWorkspaceContext
-  ): Promise<void> {
-    const fullResponse = await this.generateResponse(prompt, history, context);
-    const words = fullResponse.split(' ');
-    for (const word of words) {
-      onChunk(word + ' ');
-      await new Promise((resolve) => setTimeout(resolve, 30));
+    history: AIHistoryMessage[] = [],
+    onChunk: (chunk: string) => void = () => {},
+    context?: AIWorkspaceContext,
+    mode: 'coding' | 'support' = 'coding'
+  ): Promise<string> {
+    const fullText = await this.generateResponse(prompt, history, context, mode);
+
+    // Progressive token stream simulation
+    const words = fullText.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      const chunk = (i === 0 ? '' : ' ') + words[i];
+      onChunk(chunk);
+      // 18ms per token for ultra smooth natural streaming feel
+      await new Promise((resolve) => setTimeout(resolve, 18));
     }
+
+    return fullText;
+  }
+
+  private getLocalFallback(
+    prompt: string,
+    mode: 'coding' | 'support',
+    context?: AIWorkspaceContext
+  ): string {
+    const lower = prompt.toLowerCase();
+
+    if (mode === 'support') {
+      if (lower.includes('session') || lower.includes('create') || lower.includes('room')) {
+        return "To start a live coding room, navigate to **Home** and tap **Create Session**. Select your language preset (e.g. Python, Web, TypeScript) and share your 6-character room code with your collaborators!";
+      }
+      if (lower.includes('language') || lower.includes('piston') || lower.includes('support')) {
+        return "CodeOrbit supports 13+ languages including **Web (HTML/CSS/JS with live browser preview)**, Python, JavaScript, TypeScript, C++, C, Java, Go, Rust, PHP, Ruby, Swift, and Kotlin via isolated Piston runners.";
+      }
+      if (lower.includes('join') || lower.includes('guest') || lower.includes('account')) {
+        return "Collaborators can join without an account as a **Guest** simply by entering their nickname and room code, or by scanning your room's QR code!";
+      }
+      return "Thanks for reaching out to CodeOrbit Live Support! I can assist with session creation, supported compilers, host permissions, live sandboxes, or account settings. What would you like help with?";
+    }
+
+    if (lower.includes('debug') || lower.includes('error') || lower.includes('fix')) {
+      return `Here is a systematic debugging approach:
+
+1. **Check Inputs & Arguments**: Verify types and non-null values.
+2. **Inspect Traceback**: Look at the exact error message and line number.
+3. **Guard Against Edge Cases**: Handle empty arrays, \`undefined\` properties, and async timing.
+
+\`\`\`typescript
+try {
+  if (!inputData) throw new Error("Invalid payload provided");
+  const result = await processData(inputData);
+  console.log("Processed:", result);
+} catch (err) {
+  console.error("Execution failed:", err);
+}
+\`\`\`
+
+Share your exact code snippet and error message and I'll debug it for you!`;
+    }
+
+    if (lower.includes('python') || lower.includes('list') || lower.includes('dict')) {
+      return `Here is a clean, idiomatic Python example:
+
+\`\`\`python
+def process_data(items: list[int]) -> list[int]:
+    """Filters positive numbers and doubles them."""
+    return [x * 2 for x in items if x > 0]
+
+# Execution demo
+numbers = [1, -4, 3, 8, -2]
+print("Processed:", process_data(numbers))  # [2, 6, 16]
+\`\`\`
+
+💡 **Complexity**: Time: $O(n)$, Space: $O(n)$.`;
+    }
+
+    return `Here is how to solve this cleanly:
+
+\`\`\`typescript
+export function solveTask<T>(items: T[]): T[] {
+  // Return deduplicated, clean items
+  return Array.from(new Set(items));
+}
+\`\`\`
+
+Feel free to ask follow-up questions or paste your code snippet for analysis!`;
   }
 }
 
-export const aiService: AIProvider = new DefaultCodeOrbitAIProvider();
+export const aiService: AIProvider = new GeminiCodeOrbitAIProvider();

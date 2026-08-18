@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionSocket } from '../../hooks/useSessionSocket';
 import { useSessionStore } from '../../store/sessionStore';
 import { LANGUAGE_PRESETS, APP_COLORS } from '../../constants';
@@ -21,6 +22,7 @@ const PARTICIPANT_PRESETS = [2, 4, 8, 12, 16, 25, 50];
 
 export default function CreateSessionScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ lang?: string }>();
   const { createNewSession } = useSessionSocket();
 
@@ -98,7 +100,7 @@ export default function CreateSessionScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* 1. Header & Consistent Back Navigation */}
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 56 : 44) }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={styles.backButton}
@@ -135,7 +137,7 @@ export default function CreateSessionScreen() {
       {/* 2. Scrollable Body Content */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom > 0 ? insets.bottom + 90 : 110 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -367,7 +369,7 @@ export default function CreateSessionScreen() {
 
       {/* 3. Floating Bottom Button (Hidden until language is selected) */}
       {(step === 2 || (step === 1 && !!selectedLanguage)) && (
-        <View style={styles.floatingFooter}>
+        <View style={[styles.floatingFooter, { bottom: insets.bottom > 0 ? insets.bottom + 12 : (Platform.OS === 'ios' ? 32 : 24) }]}>
           {step === 1 ? (
             <TouchableOpacity
               style={styles.primaryCta}

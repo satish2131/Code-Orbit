@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '../../store/sessionStore';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionSocket } from '../../hooks/useSessionSocket';
@@ -23,9 +24,10 @@ import { approveJoinRequest, declineJoinRequest } from '../../services/socket';
 
 export default function WaitingRoomScreen() {
   const router = useRouter();
-  useSessionSocket();
+  const insets = useSafeAreaInsets();
   const { currentSession, participants, isHost } = useSessionStore();
   const { user } = useAuthStore();
+  useSessionSocket();
 
   const isUserHost = Boolean(
     isHost ||
@@ -172,7 +174,7 @@ export default function WaitingRoomScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 54 : 44), paddingBottom: insets.bottom > 0 ? insets.bottom + 24 : 36 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* 1. Minimal Header */}

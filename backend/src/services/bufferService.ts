@@ -9,6 +9,14 @@ interface PendingWrite {
 
 const pendingWrites = new Map<string, PendingWrite>();
 
+export const invalidateTabBuffer = (tabId: string): void => {
+  const existing = pendingWrites.get(tabId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    pendingWrites.delete(tabId);
+  }
+};
+
 export const bufferTabChange = (
   prisma: PrismaClient,
   tabId: string,
@@ -28,8 +36,12 @@ export const bufferTabChange = (
         data: { content },
       });
       console.log(`[BufferService] Throttled DB flush completed for tab: ${tabId} (session: ${sessionId})`);
-    } catch (err) {
-      console.error(`[BufferService] DB flush failed for tab: ${tabId}`, err);
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        console.warn(`[BufferService] Target tab no longer exists in database (tab: ${tabId}, session: ${sessionId}, code: P2025). Buffer discarded.`);
+      } else {
+        console.error(`[BufferService] DB flush failed for tab: ${tabId} (session: ${sessionId})`, err);
+      }
     }
   }, 3000); // 3-second write-back debounce window
 
@@ -59,8 +71,12 @@ export const flushSessionWrites = async (
           where: { id: entry.tabId },
           data: { content: entry.content },
         });
-      } catch (err) {
-        console.error(`[BufferService] Session flush error for tab ${entry.tabId}:`, err);
+      } catch (err: any) {
+        if (err?.code === 'P2025') {
+          console.warn(`[BufferService] Session flush discarded for nonexistent tab: ${entry.tabId} (session: ${sessionId})`);
+        } else {
+          console.error(`[BufferService] Session flush error for tab ${entry.tabId}:`, err);
+        }
       }
     })
   );
@@ -87,8 +103,12 @@ export const flushAllPendingWrites = async (
           where: { id: entry.tabId },
           data: { content: entry.content },
         });
-      } catch (err) {
-        console.error(`[BufferService] Global flush error for tab ${entry.tabId}:`, err);
+      } catch (err: any) {
+        if (err?.code === 'P2025') {
+          console.warn(`[BufferService] Global flush discarded for nonexistent tab: ${entry.tabId}`);
+        } else {
+          console.error(`[BufferService] Global flush error for tab ${entry.tabId}:`, err);
+        }
       }
     })
   );
@@ -97,3 +117,4 @@ export const flushAllPendingWrites = async (
   await Promise.race([flushPromise, timeoutPromise]);
   console.log(`[BufferService] Global shutdown flush completed (${entries.length} pending tabs)`);
 };
+

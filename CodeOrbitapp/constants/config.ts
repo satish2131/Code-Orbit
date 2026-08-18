@@ -1,4 +1,4 @@
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.55.105:3000';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.55.104:3000';
 export const PISTON_API_URL = process.env.EXPO_PUBLIC_PISTON_URL || 'https://emkc.org/api/v2/piston';
 export const WS_URL = process.env.EXPO_PUBLIC_WS_URL || API_URL;
 

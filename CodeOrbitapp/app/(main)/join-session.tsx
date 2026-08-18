@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionSocket } from '../../hooks/useSessionSocket';
 import { useAuthStore } from '../../store/authStore';
 import { validateSessionCode, validateName } from '../../utils/validation';
@@ -10,6 +11,7 @@ import { APP_COLORS } from '../../constants';
 
 export default function JoinSessionScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { joinExistingSession } = useSessionSocket();
   const { user, isGuest } = useAuthStore();
   const [sessionCode, setSessionCode] = useState('');
@@ -45,11 +47,11 @@ export default function JoinSessionScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 30 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingTop: insets.top > 0 ? insets.top + 16 : 60 }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => safeGoBack(router, '/(main)/home')}>
               <Ionicons name="arrow-back" size={20} color={APP_COLORS.primary} />

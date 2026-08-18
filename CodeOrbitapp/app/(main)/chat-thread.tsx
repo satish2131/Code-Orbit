@@ -14,12 +14,14 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { APP_COLORS } from '../../constants';
 import { useMessageStore, ThreadMessage } from '../../store/messageStore';
 
 export default function ChatThreadScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     id?: string;
     name?: string;
@@ -231,7 +233,7 @@ export default function ChatThreadScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* 1. Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 52 : 20) }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={handleBack}
@@ -352,7 +354,7 @@ export default function ChatThreadScreen() {
       )}
 
       {/* 4. Developer Composer */}
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : (Platform.OS === 'ios' ? 24 : 12) }]}>
         <View style={styles.inputBarWrapper}>
           <TouchableOpacity
             style={styles.attachButton}
@@ -410,7 +412,7 @@ export default function ChatThreadScreen() {
             activeOpacity={1}
             onPress={() => setShowOptionsSheet(false)}
           />
-          <View style={styles.bottomSheet}>
+          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24 }]}>
             <View style={styles.dragBar} />
 
             <View style={styles.optionsHeader}>
@@ -477,7 +479,7 @@ export default function ChatThreadScreen() {
             activeOpacity={1}
             onPress={() => setShowAttachSheet(false)}
           />
-          <View style={styles.bottomSheet}>
+          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24 }]}>
             <View style={styles.dragBar} />
             <Text style={styles.attachHeading}>Share to conversation</Text>
 

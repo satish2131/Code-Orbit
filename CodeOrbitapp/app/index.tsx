@@ -1,12 +1,29 @@
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
+import { Redirect } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import { APP_COLORS } from '../constants';
 
-// index.tsx is intentionally empty — navigation is handled exclusively by
-// the AuthGate component in _layout.tsx, which is the single authoritative
-// redirect mechanism. Rendering <Redirect> here would race with AuthGate
-// during the AUTH_LOADING phase, causing a double-navigation crash.
 export default function IndexScreen() {
-  // During AUTH_LOADING the AuthGate will navigate us away once status resolves.
-  // Return a plain background screen so nothing flashes.
-  return <View style={{ flex: 1, backgroundColor: '#17181A' }} />;
+  const { status } = useAuthStore();
+
+  if (status === 'AUTHENTICATED') {
+    return <Redirect href="/(main)/home" />;
+  }
+
+  if (status === 'UNAUTHENTICATED') {
+    return <Redirect href="/(auth)/welcome" />;
+  }
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#17181A',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <ActivityIndicator size="small" color={APP_COLORS.primary} />
+    </View>
+  );
 }

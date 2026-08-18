@@ -91,6 +91,16 @@ export const useSessionStore = create<SessionState>((set) => ({
           ? state.fileTabs
           : [];
 
+      let newActiveTabId = state.activeTabId;
+      if (updatedTabs.length > 0) {
+        const hasActive = updatedTabs.some((t) => t.id === newActiveTabId);
+        if (!hasActive) {
+          newActiveTabId = updatedTabs[0].id;
+        }
+      } else {
+        newActiveTabId = null;
+      }
+
       const updatedParticipants =
         snapshot.participants || (isSameSession ? state.participants : []);
 
@@ -111,6 +121,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         currentSession: mergedSession,
         currentVersion: mergedSession.version || incomingVersion,
         fileTabs: updatedTabs,
+        activeTabId: newActiveTabId,
         participants: updatedParticipants,
         isHost: hostFlag,
       };
@@ -142,7 +153,13 @@ export const useSessionStore = create<SessionState>((set) => ({
         p.id === participantId ? { ...p, ...updates } : p
       ),
     })),
-  setFileTabs: (tabs) => set({ fileTabs: tabs, activeTabId: tabs[0]?.id || null }),
+  setFileTabs: (tabs) =>
+    set((state) => ({
+      fileTabs: tabs,
+      activeTabId: tabs.some((t) => t.id === state.activeTabId)
+        ? state.activeTabId
+        : tabs[0]?.id || null,
+    })),
   addFileTab: (tab) =>
     set((state) => ({ fileTabs: [...state.fileTabs, tab] })),
   removeFileTab: (tabId) =>

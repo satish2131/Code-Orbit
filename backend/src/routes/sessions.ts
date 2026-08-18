@@ -74,13 +74,24 @@ router.post('/', authenticate, validate(schemas.createSession), async (req: Auth
       });
     }
 
+    const createdTabs = await prisma.fileTab.findMany({
+      where: { sessionId: session.id },
+      orderBy: { orderIndex: 'asc' },
+    });
+
     const SESSION_EXPIRY = INACTIVITY_TIMEOUT_SECONDS;
     await redis.setex(`session:${code}`, SESSION_EXPIRY, JSON.stringify({
       sessionId: session.id,
       hostId: req.userId,
     }));
 
-    res.status(201).json({ session });
+    res.status(201).json({
+      session: {
+        ...session,
+        fileTabs: createdTabs,
+      },
+      fileTabs: createdTabs,
+    });
   } catch (error) {
     console.error('Create session error:', error);
     res.status(500).json({ message: 'Failed to create session' });

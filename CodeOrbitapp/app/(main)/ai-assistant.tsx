@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_COLORS } from '../../constants';
 import { aiService } from '../../services/aiService';
 
@@ -51,6 +52,7 @@ const QUICK_SUGGESTIONS = [
 
 export default function AIAssistantScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { from } = useLocalSearchParams<{ from?: string }>();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -58,9 +60,30 @@ export default function AIAssistantScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleBack = useCallback(() => {
     Keyboard.dismiss();
@@ -118,32 +141,59 @@ export default function AIAssistantScreen() {
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, userMsg]);
+      const aiMsgId = 'msg_ai_' + (Date.now() + 1);
+      const initialAiMsg: Message = {
+        id: aiMsgId,
+        text: '',
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, userMsg, initialAiMsg]);
       setInputText('');
       setIsTyping(true);
 
+      const historyPayload = messages.slice(-6).map((m) => ({
+        id: m.id,
+        text: m.text,
+        isUser: m.isUser,
+        timestamp: m.timestamp,
+      }));
+
       try {
-        const responseText = await aiService.generateResponse(prompt, []);
-        const aiMsg: Message = {
-          id: 'msg_ai_' + Date.now(),
-          text: responseText,
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
+        let accumulated = '';
+        await aiService.generateStream(
+          prompt,
+          historyPayload,
+          (chunk: string) => {
+            accumulated += chunk;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMsgId ? { ...msg, text: accumulated } : msg
+              )
+            );
+          },
+          undefined,
+          'coding'
+        );
       } catch (err) {
-        const errorMsg: Message = {
-          id: 'msg_err_' + Date.now(),
-          text: "I couldn't complete that request. Please check your network connection and try again.",
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMsg]);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMsgId
+              ? {
+                  ...msg,
+                  text:
+                    msg.text ||
+                    "I couldn't complete that request. Please check your network connection and try again.",
+                }
+              : msg
+          )
+        );
       } finally {
         setIsTyping(false);
       }
     },
-    [inputText, isTyping]
+    [inputText, isTyping, messages]
   );
 
   const handleSelectSuggestion = useCallback(
@@ -162,11 +212,11 @@ export default function AIAssistantScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       {/* 1. Minimal Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 52 : 20) }]}>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={handleBack}
@@ -252,25 +302,21 @@ export default function AIAssistantScreen() {
             />
           ))
         )}
-
-        {/* Subtle Typing Indicator */}
-        {isTyping && (
-          <View style={styles.aiMessageWrapper}>
-            <View style={styles.aiHeaderRow}>
-              <Ionicons name="sparkles" size={13} color={AI_THEME.aiPurple} style={{ marginRight: 6 }} />
-              <Text style={styles.aiHeaderTitle}>CodeOrbit AI</Text>
-            </View>
-            <View style={styles.typingContainer}>
-              <View style={styles.typingDot} />
-              <View style={[styles.typingDot, styles.typingDotMiddle]} />
-              <View style={styles.typingDot} />
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       {/* 3. Hero Composer Interaction */}
-      <View style={styles.composerWrapper}>
+      <View
+        style={[
+          styles.composerWrapper,
+          {
+            paddingBottom: keyboardVisible
+              ? 8
+              : insets.bottom > 0
+              ? insets.bottom + 8
+              : (Platform.OS === 'ios' ? 24 : 14),
+          },
+        ]}
+      >
         <View style={styles.composerCard}>
           {/* Plus Action for Templates/Snippets */}
           <TouchableOpacity
@@ -436,7 +482,14 @@ const MessageItem = React.memo(function MessageItem({
 
       {/* Unboxed Content Body */}
       <View style={styles.aiBody}>
-        {segments.map((seg, idx) => {
+        {!message.text ? (
+          <View style={styles.typingContainer}>
+            <View style={styles.typingDot} />
+            <View style={[styles.typingDot, styles.typingDotMiddle]} />
+            <View style={styles.typingDot} />
+          </View>
+        ) : (
+          segments.map((seg, idx) => {
           if (seg.type === 'code' && seg.id) {
             const isCopied = copiedCodeId === seg.id;
             return (
@@ -481,7 +534,8 @@ const MessageItem = React.memo(function MessageItem({
               {cleanText}
             </Text>
           );
-        })}
+        })
+      )}
       </View>
     </View>
   );

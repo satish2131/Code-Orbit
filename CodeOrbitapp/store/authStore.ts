@@ -93,9 +93,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    // Persist user data
+    // Persist compact user data (avoid large base64 avatar strings overflowing SecureStore limit)
     try {
-      await SecureStore.setItemAsync('user_data', JSON.stringify(normUser));
+      const compactUser = {
+        id: normUser.id,
+        name: normUser.name,
+        email: normUser.email,
+        username: normUser.username,
+        auth_provider: normUser.auth_provider,
+        avatar_url: normUser.avatar_url && normUser.avatar_url.length > 500 ? undefined : normUser.avatar_url,
+        created_at: normUser.created_at,
+      };
+      await SecureStore.setItemAsync('user_data', JSON.stringify(compactUser));
     } catch (e) {
       console.warn('[AUTH] SecureStore: failed to save user_data', e);
     }
@@ -190,7 +199,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (res?.user) {
             let fresh: User;
             try { fresh = normaliseUser(res.user); } catch { return; }
-            SecureStore.setItemAsync('user_data', JSON.stringify(fresh)).catch(() => {});
+            const compactFresh = {
+              id: fresh.id,
+              name: fresh.name,
+              email: fresh.email,
+              username: fresh.username,
+              auth_provider: fresh.auth_provider,
+              avatar_url: fresh.avatar_url && fresh.avatar_url.length > 500 ? undefined : fresh.avatar_url,
+              created_at: fresh.created_at,
+            };
+            SecureStore.setItemAsync('user_data', JSON.stringify(compactFresh)).catch(() => {});
             set({ user: fresh });
             console.log('[AUTH] restoreSession: background refresh complete');
           } else {

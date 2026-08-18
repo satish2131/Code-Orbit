@@ -18,9 +18,11 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_COLORS } from '../../constants';
 import { safeGoBack } from '../../utils/navigation';
 import { api } from '../../services/api';
+import { aiService } from '../../services/aiService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -69,6 +71,7 @@ const FAQ_ITEMS = [
 
 export default function ContactScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { from } = useLocalSearchParams<{ from?: string }>();
 
   // Navigation mode: 'options', 'form' (email), 'bug' (report a bug), 'chat' (live support)
@@ -263,9 +266,9 @@ export default function ContactScreen() {
     return "Thank you for reaching out! I'm your CodeOrbit Live Support Assistant.\n\nYou can ask me about:\n• Creating & joining coding rooms\n• Supported languages & Piston code execution\n• Troubleshooting connections";
   };
 
-  const handleSend = (text?: string) => {
+  const handleSend = async (text?: string) => {
     const messageText = text || inputText.trim();
-    if (!messageText) return;
+    if (!messageText || isTyping) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -274,29 +277,66 @@ export default function ContactScreen() {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const botMsgId = (Date.now() + 1).toString();
+    const initialBotMsg: Message = {
+      id: botMsgId,
+      text: '',
+      isUser: false,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, initialBotMsg]);
     setInputText('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const botMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        text: generateSupportResponse(messageText),
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
+    const historyPayload = messages.slice(-6).map((m) => ({
+      id: m.id,
+      text: m.text,
+      isUser: m.isUser,
+      timestamp: m.timestamp,
+    }));
+
+    try {
+      let accumulated = '';
+      await aiService.generateStream(
+        messageText,
+        historyPayload,
+        (chunk: string) => {
+          accumulated += chunk;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === botMsgId ? { ...msg, text: accumulated } : msg
+            )
+          );
+        },
+        undefined,
+        'support'
+      );
+    } catch (err) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMsgId
+            ? {
+                ...msg,
+                text:
+                  msg.text ||
+                  generateSupportResponse(messageText),
+              }
+            : msg
+        )
+      );
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
     >
       {/* Top Header - Lighter, compact hierarchy */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === 'ios' ? 52 : 20) }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
@@ -665,25 +705,19 @@ export default function ContactScreen() {
                     style={[
                       styles.messageBubble,
                       msg.isUser ? styles.userBubble : styles.botBubble,
+                      !msg.text && styles.typingBubble,
                     ]}
                   >
-                    <Text style={[styles.messageText, msg.isUser && styles.userMessageText]}>
-                      {msg.text}
-                    </Text>
+                    {!msg.text ? (
+                      <Text style={styles.typingText}>Support is typing...</Text>
+                    ) : (
+                      <Text style={[styles.messageText, msg.isUser && styles.userMessageText]}>
+                        {msg.text}
+                      </Text>
+                    )}
                   </View>
                 </View>
               ))}
-
-              {isTyping && (
-                <View style={[styles.messageWrapper, styles.botMessageWrapper]}>
-                  <View style={styles.botAvatarCircle}>
-                    <Ionicons name="headset" size={14} color="#FFFFFF" />
-                  </View>
-                  <View style={[styles.messageBubble, styles.botBubble, styles.typingBubble]}>
-                    <Text style={styles.typingText}>Support is typing...</Text>
-                  </View>
-                </View>
-              )}
             </ScrollView>
 
             {/* Support Quick Prompts Horizontal Scroll */}
@@ -703,7 +737,7 @@ export default function ContactScreen() {
             </View>
 
             {/* Input Bar */}
-            <View style={styles.chatInputBar}>
+            <View style={[styles.chatInputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
               <TextInput
                 style={styles.chatInput}
                 placeholder="Ask support a question..."
@@ -738,7 +772,7 @@ export default function ContactScreen() {
             activeOpacity={1}
             onPress={() => setShowFAQModal(false)}
           />
-          <View style={styles.faqBottomSheet}>
+          <View style={[styles.faqBottomSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24 }]}>
             <View style={styles.dragBar} />
 
             <View style={styles.faqHeader}>

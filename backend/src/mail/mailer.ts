@@ -17,12 +17,15 @@ const SMTP_PASS = process.env.SMTP_PASS || '';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'security@codeorbit.app';
 
 export const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  family: 4, // Force IPv4 to prevent ENETUNREACH IPv6 routing failures in container environments
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
   },
-});
+} as nodemailer.TransportOptions);
 
 // Transporter verification
 if (SMTP_USER && SMTP_PASS) {

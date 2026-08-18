@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useEditorStore } from '../../../store/editorStore';
@@ -36,6 +37,7 @@ const COMMON_SHORTCUTS = ['tab', '()', '{}', '[]', ':', '=', '""', "''", ';', '#
 
 export default function SessionRoomScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ code?: string }>();
   const { user } = useAuthStore();
   const {
@@ -138,22 +140,7 @@ export default function SessionRoomScreen() {
 
   const currentLanguagePreset = getLanguagePreset(sessionPresetKey);
 
-  // Hydrate initial file tabs strictly from verified preset configuration
-  useEffect(() => {
-    if (fileTabs.length === 0 && currentLanguagePreset) {
-      const initialTabs = currentLanguagePreset.initialFiles.map((file, idx) => ({
-        id: `tab-${idx + 1}`,
-        session_id: currentSession?.id || 'session-local',
-        filename: file,
-        language: currentLanguagePreset.id,
-        content: currentLanguagePreset.starterCode?.[file] || '',
-        order_index: idx,
-      }));
-      setFileTabs(initialTabs);
-    }
-  }, [fileTabs.length, currentLanguagePreset, currentSession?.id]);
-
-  const activeTab = fileTabs.find((t) => t.id === activeTabId) || fileTabs[0];
+  const activeTab = fileTabs.find((t) => t.id === activeTabId) || fileTabs[0] || null;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
 
@@ -176,24 +163,14 @@ export default function SessionRoomScreen() {
   const handleCodeChange = useCallback(
     (content: string) => {
       const currentTab = activeTabRef.current;
-      if (!currentTab) return;
+      if (!currentTab || !currentTab.id) return;
 
-      if (currentTab.id === 'default') {
-        const tabId = `tab-main`;
-        const newTab = { ...currentTab, id: tabId, content };
-        addFileTab(newTab);
-        setActiveTabId(tabId);
-        if (currentSession) {
-          updateCode(currentSession.code, tabId, content);
-        }
-      } else {
-        updateFileTab(currentTab.id, { content });
-        if (currentSession) {
-          updateCode(currentSession.code, currentTab.id, content);
-        }
+      updateFileTab(currentTab.id, { content });
+      if (currentSession) {
+        updateCode(currentSession.code, currentTab.id, content);
       }
     },
-    [currentSession?.code, addFileTab, setActiveTabId, updateFileTab, updateCode]
+    [currentSession?.code, updateFileTab, updateCode]
   );
 
   const handleInsertShortcut = useCallback((symbol: string) => {
@@ -211,17 +188,6 @@ export default function SessionRoomScreen() {
 
     if (currentSession) {
       createTab(currentSession.code, name, lang);
-    } else {
-      const newTab: FileTab = {
-        id: `tab-${Date.now()}`,
-        session_id: '',
-        filename: name,
-        language: lang,
-        content: '',
-        order_index: fileTabs.length,
-      };
-      addFileTab(newTab);
-      setActiveTabId(newTab.id);
     }
     setNewFilename('');
     setShowAddTabModal(false);
@@ -486,7 +452,7 @@ export default function SessionRoomScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* 1. Minimal Top Toolbar (3-Zone Flex Layout) */}
-      <View style={styles.toolbar}>
+      <View style={[styles.toolbar, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 52 : 42) }]}>
         {/* Zone 1: Flexible Truncating Title */}
         <View style={styles.toolbarLeft}>
           <TouchableOpacity
@@ -743,19 +709,26 @@ export default function SessionRoomScreen() {
 
       {/* 3. Main Code Editor Area */}
       <View style={styles.editorContainer}>
-        <CodeEditor
-          ref={editorRef}
-          code={activeTab?.content || ''}
-          language={activeEditorLang}
-          theme={currentTheme}
-          onChangeCode={handleCodeChange}
-          readOnly={!canIEdit}
-        />
+        {fileTabs.length === 0 || !activeTab ? (
+          <View style={styles.editorLoadingContainer}>
+            <ActivityIndicator size="large" color={APP_COLORS.primary} />
+            <Text style={styles.editorLoadingText}>Loading session files...</Text>
+          </View>
+        ) : (
+          <CodeEditor
+            ref={editorRef}
+            code={activeTab.content || ''}
+            language={activeEditorLang}
+            theme={currentTheme}
+            onChangeCode={handleCodeChange}
+            readOnly={!canIEdit}
+          />
+        )}
       </View>
 
       {/* 4. Mobile Coding Shortcut Toolbar */}
       {canIEdit && (
-        <View style={styles.shortcutBar}>
+        <View style={[styles.shortcutBar, { paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : (Platform.OS === 'ios' ? 24 : 10) }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -786,7 +759,7 @@ export default function SessionRoomScreen() {
         onRequestClose={() => setShowConsole(false)}
       >
         <View style={styles.bottomSheetOverlay}>
-          <View style={styles.consoleSheet}>
+          <View style={[styles.consoleSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 12 : 20 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleBox}>
                 <Ionicons name="terminal-outline" size={16} color={APP_COLORS.text} />
@@ -829,7 +802,7 @@ export default function SessionRoomScreen() {
       {/* 6. Theme Selector Modal */}
       <Modal visible={showThemeSelector} transparent animationType="slide">
         <View style={styles.bottomSheetOverlay}>
-          <View style={styles.compactSheet}>
+          <View style={[styles.compactSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleBox}>
                 <Ionicons name="color-palette-outline" size={18} color={APP_COLORS.primary} />
@@ -874,7 +847,7 @@ export default function SessionRoomScreen() {
         onRequestClose={() => setShowParticipants(false)}
       >
         <View style={styles.bottomSheetOverlay}>
-          <View style={styles.compactSheet}>
+          <View style={[styles.compactSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 24 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleBox}>
                 <Ionicons name="people-outline" size={18} color={APP_COLORS.primary} />
@@ -969,7 +942,7 @@ export default function SessionRoomScreen() {
             activeOpacity={1}
             onPress={() => setShowChat(false)}
           />
-          <View style={styles.chatSheetContainer}>
+          <View style={[styles.chatSheetContainer, { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 14 }]}>
             {/* Header */}
             <View style={styles.chatSheetHeader}>
               <View style={styles.chatHeaderLeft}>
@@ -1064,7 +1037,7 @@ export default function SessionRoomScreen() {
           style={styles.bottomSheetOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={[styles.compactSheet, { paddingBottom: 24 }]}>
+          <View style={[styles.compactSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 24 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleBox}>
                 <Ionicons name="document-text-outline" size={18} color={APP_COLORS.primary} />
@@ -1111,7 +1084,7 @@ export default function SessionRoomScreen() {
           style={styles.bottomSheetOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={[styles.compactSheet, { paddingBottom: 24 }]}>
+          <View style={[styles.compactSheet, { paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 24 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleBox}>
                 <Ionicons name="create-outline" size={18} color={APP_COLORS.primary} />
@@ -1428,6 +1401,16 @@ const styles = StyleSheet.create({
   editorContainer: {
     flex: 1,
     backgroundColor: '#1E1E1E',
+  },
+  editorLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  editorLoadingText: {
+    color: APP_COLORS.textSecondary,
+    fontSize: 14,
   },
 
   // Mobile Coding Shortcuts
@@ -1851,7 +1834,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#303030',
     marginHorizontal: 14,
-    marginBottom: Platform.OS === 'ios' ? 24 : 14,
+    marginBottom: 6,
     marginTop: 6,
   },
   chatComposerInput: {
